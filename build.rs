@@ -9,8 +9,15 @@ fn main() {
             .cpp(true)
             .include("/usr/local/include")
             .include("/usr/local/include/libsnark")
-            .flag("-std=c++11")
+            .opt_level(2)
+            .define("NO_PROCPS", None)
+            .define("STATIC", None)
+            .define("MONTGOMERY_OUTPUT", None)
+            .define("USE_ASM", None)
+            .define("NO_PT_COMPRESSION", None)
+            .define("BINARY_OUTPUT", None)
             .define("CURVE_ALT_BN128", None)
+            .flag("-std=c++11")
             .file("lib/wraplibsnark.cpp")
             .compile("libwraplibsnark.a");
     }
