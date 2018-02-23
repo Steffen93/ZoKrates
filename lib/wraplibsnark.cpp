@@ -72,6 +72,18 @@ std::string outputPointG2AffineAsHex(libsnark::alt_bn128_G2 _p)
 																HexStringFromLibsnarkBigint(aff.Y.c0.as_bigint()) + "]";
 }
 
+template<typename T>
+void writeToFile(std::string path, T& obj) {
+    std::stringstream ss;
+    ss << obj;
+    std::ofstream fh;
+    fh.open(path, std::ios::binary);
+    ss.rdbuf()->pubseekpos(0, std::ios_base::out);
+    fh << ss.rdbuf();
+    fh.flush();
+    fh.close();
+}
+
 //takes input and puts it into constraint system
 r1cs_ppzksnark_constraint_system<alt_bn128_pp> createConstraintSystem(const uint8_t* A, const uint8_t* B, const uint8_t* C, int constraints, int variables, int inputs)
 {
@@ -109,10 +121,22 @@ r1cs_ppzksnark_constraint_system<alt_bn128_pp> createConstraintSystem(const uint
         // cout << "C(" << idx << ", " << value << ")" << endl;
         lin_comb_C.add_term(idx, value);
       }
-    }
+    } 
     cs.add_constraint(r1cs_constraint<Fr<alt_bn128_pp> >(lin_comb_A, lin_comb_B, lin_comb_C));
   }
-
+  uint64_t qap_degree = constraints + inputs + 1;
+  if(qap_degree != 1u << (uint64_t)(floor(log2(qap_degree)))){
+    uint64_t additional_constraints = (1u << (uint64_t)(floor(log2(qap_degree)) + 1)) - qap_degree;
+    for (int i = 0; i < additional_constraints; ++i)
+    {
+      linear_combination<Fr<alt_bn128_pp>> lin_comb_A, lin_comb_B, lin_comb_C;
+      lin_comb_A.add_term(0, 1);
+      lin_comb_B.add_term(0, 1);
+      lin_comb_C.add_term(0, 1);
+      cs.add_constraint(r1cs_constraint<Fr<alt_bn128_pp>>(lin_comb_A, lin_comb_B, lin_comb_C));
+    }
+  }
+  writeToFile("r1cs", cs);
   return cs;
 }
 
@@ -120,18 +144,6 @@ r1cs_ppzksnark_constraint_system<alt_bn128_pp> createConstraintSystem(const uint
 r1cs_ppzksnark_keypair<alt_bn128_pp> generateKeypair(const r1cs_ppzksnark_constraint_system<alt_bn128_pp> &cs){
   // from r1cs_ppzksnark.hpp
   return r1cs_ppzksnark_generator<alt_bn128_pp>(cs);
-}
-
-template<typename T>
-void writeToFile(std::string path, T& obj) {
-    std::stringstream ss;
-    ss << obj;
-    std::ofstream fh;
-    fh.open(path, std::ios::binary);
-    ss.rdbuf()->pubseekpos(0, std::ios_base::out);
-    fh << ss.rdbuf();
-    fh.flush();
-    fh.close();
 }
 
 template<typename T>
@@ -246,6 +258,11 @@ bool _setup(const uint8_t* A, const uint8_t* B, const uint8_t* C, int constraint
   r1cs_constraint_system<Fr<alt_bn128_pp>> cs;
   cs = createConstraintSystem(A, B ,C , constraints, variables, inputs);
 
+  uint64_t qap_degree = constraints + inputs + 1;
+  if(qap_degree != 1u << (uint64_t)(floor(log2(qap_degree)))){
+    constraints = (1u << (uint64_t)(floor(log2(qap_degree)) + 1)) - qap_degree;
+  }
+  
   assert(cs.num_variables() >= inputs);
   assert(cs.num_inputs() == inputs);
   assert(cs.num_constraints() == constraints);
